@@ -5,31 +5,39 @@ pragma solidity 0.8.19;
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
-/** 
+/**
  * @title A sample Raffle contract
  * @author Vitor Jaguat
  * @notice This contract creates a sample raffle
  * @dev Implements Chainlink VRFv2.5 and Chainlink Automation
  */
-
 contract Raffle is VRFConsumerBaseV2Plus {
-    /** Errors */
+    /**
+     * Errors
+     */
     error Raffle__SendMoreToEnterRaffle();
     error Raffle__TransferFailed();
     error Raffle__RaffleNotOpen();
     error Raffle__UpkeepNotNeeded(uint256 balance, uint256 playersLength, uint256 raffleState);
 
-    /** Type declarations */
+    /**
+     * Type declarations
+     */
     enum RaffleState {
-        OPEN,           // 0
-        CALCULATING     // 1
+        OPEN, // 0
+        CALCULATING // 1
+
     }
 
-    /** State variables (storage) */
+    /**
+     * State variables (storage)
+     */
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
     uint32 private constant NUM_WORDS = 1;
     uint256 private immutable i_entranceFee;
-    /** @dev The duration of the lottery in seconds */
+    /**
+     * @dev The duration of the lottery in seconds
+     */
     uint256 private immutable i_interval;
     bytes32 private immutable i_keyHash;
     uint256 private immutable i_subscriptionId;
@@ -39,7 +47,14 @@ contract Raffle is VRFConsumerBaseV2Plus {
     address private s_recentWinner;
     RaffleState private s_raffleState;
 
-    constructor(uint256 entranceFee, uint256 interval, address vrfCoordinator, bytes32 gasLane, uint256 subscriptionId, uint32 callbackGasLimit) VRFConsumerBaseV2Plus(vrfCoordinator) {
+    constructor(
+        uint256 entranceFee,
+        uint256 interval,
+        address vrfCoordinator,
+        bytes32 gasLane,
+        uint256 subscriptionId,
+        uint32 callbackGasLimit
+    ) VRFConsumerBaseV2Plus(vrfCoordinator) {
         i_entranceFee = entranceFee;
         i_interval = interval;
         i_keyHash = gasLane;
@@ -50,7 +65,9 @@ contract Raffle is VRFConsumerBaseV2Plus {
         s_raffleState = RaffleState.OPEN;
     }
 
-    /** Events */
+    /**
+     * Events
+     */
     event RaffleEntered(address indexed player);
     event WinnerPicked(address indexed winner);
 
@@ -75,7 +92,17 @@ contract Raffle is VRFConsumerBaseV2Plus {
      * @return upkeepNeeded - true if it's time to restart the lottery
      * @return - ignored for this use case
      */
-    function checkUpkeep(bytes memory /** checkData */) public view returns (bool upkeepNeeded, bytes memory /** performData */) {
+    function checkUpkeep(bytes memory)
+        /**
+         * checkData
+         */
+        public
+        view
+        returns (bool upkeepNeeded, bytes memory)
+    /**
+     * performData
+     */
+    {
         // check if enough time has passed
         bool timeHasPassed = ((block.timestamp - s_lastTimeStamp) >= i_interval);
         bool isOpen = s_raffleState == RaffleState.OPEN;
@@ -88,33 +115,37 @@ contract Raffle is VRFConsumerBaseV2Plus {
     // 1. Get a random number
     // 2. Use random number to pick a player
     // 3. Be automatically called (see checkUpkeep function)
-    function performUpkeep(bytes calldata /** performData */) external {
+    function performUpkeep(bytes calldata)
+        /**
+         * performData
+         */
+        external
+    {
         // check ourselves if enough time has REALLY passed (double security to avoid reentrancy)
-        (bool upkeepNeeded, ) = checkUpkeep("");
-        if (!upkeepNeeded) revert Raffle__UpkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState));
+        (bool upkeepNeeded,) = checkUpkeep("");
+        if (!upkeepNeeded) {
+            revert Raffle__UpkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState));
+        }
 
         // change raffle state, so people are not able to enter the raffle
         s_raffleState = RaffleState.CALCULATING;
 
         // Get our random number from Chainlink VRF
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient.RandomWordsRequest({
-                keyHash: i_keyHash,
-                subId: i_subscriptionId,
-                requestConfirmations: REQUEST_CONFIRMATIONS,
-                callbackGasLimit: i_callbackGasLimit,
-                numWords: NUM_WORDS,
-                extraArgs: VRFV2PlusClient._argsToBytes(
-                    VRFV2PlusClient.ExtraArgsV1({
-                        nativePayment: false
-                    })
-                )
+            keyHash: i_keyHash,
+            subId: i_subscriptionId,
+            requestConfirmations: REQUEST_CONFIRMATIONS,
+            callbackGasLimit: i_callbackGasLimit,
+            numWords: NUM_WORDS,
+            extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
         });
 
         uint256 requestId = s_vrfCoordinator.requestRandomWords(request);
-      
     }
 
-    /** @dev After Chainlink oracle generates the requested random number and proof for a VRF request, the oracle calls a designated callback function (fullfillRandomWords) on the consuming contract, delivering the results. */
+    /**
+     * @dev After Chainlink oracle generates the requested random number and proof for a VRF request, the oracle calls a designated callback function (fullfillRandomWords) on the consuming contract, delivering the results.
+     */
     // CEI: Checks, Effects, Interactions PATTERN
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
         // CHECKS
@@ -134,13 +165,22 @@ contract Raffle is VRFConsumerBaseV2Plus {
         emit WinnerPicked(s_recentWinner);
 
         // INTERACTIONS (External contract interactions)
-        (bool success, ) = recentWinner.call{ value: address(this).balance }("");
+        (bool success,) = recentWinner.call{value: address(this).balance}("");
         if (!success) revert Raffle__TransferFailed();
-
     }
 
-    /** Getter Functions */
+    /**
+     * Getter Functions
+     */
     function getEntranceFee() public view returns (uint256) {
         return i_entranceFee;
+    }
+
+    function getRaffleState() external view returns (RaffleState) {
+        return s_raffleState;
+    }
+
+    function getPlayer(uint256 indexOfPlayer) external view returns (address) {
+        return s_players[indexOfPlayer];
     }
 }
